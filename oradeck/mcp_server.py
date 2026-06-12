@@ -15,8 +15,10 @@ from oradeck import TOOL_NAME, TOOL_VERSION
 from oradeck.core import (
     OradeckError,
     copy_to_store,
+    gc_store,
     inspect_store,
     plan_mirror,
+    verify_store,
 )
 
 PROTOCOL_VERSION = "2024-11-05"
@@ -61,6 +63,26 @@ _TOOLS = [
             "additionalProperties": False,
         },
     },
+    {
+        "name": "verify",
+        "description": "Verify store integrity: every blob's content matches "
+                       "its digest and every referenced blob is present.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"store": {"type": "string"}},
+            "required": ["store"], "additionalProperties": False,
+        },
+    },
+    {
+        "name": "gc",
+        "description": "Report (dry-run) or remove blobs not reachable from the "
+                       "store index.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"store": {"type": "string"}, "apply": {"type": "boolean"}},
+            "required": ["store"], "additionalProperties": False,
+        },
+    },
 ]
 
 
@@ -88,6 +110,18 @@ def _call_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(images, list) or not isinstance(dest, str):
             raise ValueError("`images` (array) and `dest_registry` (string) required")
         payload = {"plan": plan_mirror([str(x) for x in images], dest)}
+        is_error = False
+    elif name == "verify":
+        store = args.get("store")
+        if not isinstance(store, str) or not store:
+            raise ValueError("`store` (string) is required")
+        payload = verify_store(store)
+        is_error = not payload["ok"]
+    elif name == "gc":
+        store = args.get("store")
+        if not isinstance(store, str) or not store:
+            raise ValueError("`store` (string) is required")
+        payload = gc_store(store, dry_run=not bool(args.get("apply", False)))
         is_error = False
     else:
         raise ValueError(f"unknown tool: {name}")

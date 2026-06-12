@@ -9,11 +9,14 @@ from oradeck.core import (
     build_demo_fixture,
     copy_to_store,
     digest_of,
+    gc_store,
     inspect_store,
+    list_referrers,
     parse_ref,
     plan_mirror,
     push_from_store,
     suggest_mirror_set,
+    verify_store,
 )
 
 __version__ = TOOL_VERSION
@@ -28,9 +31,12 @@ __all__ = [
     "build_demo_fixture",
     "copy_to_store",
     "digest_of",
+    "gc_store",
     "inspect_store",
+    "list_referrers",
     "parse_ref",
     "plan_mirror",
     "push_from_store",
     "suggest_mirror_set",
+    "verify_store",
 ]

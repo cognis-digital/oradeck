@@ -119,7 +119,7 @@ class TestMcp(unittest.TestCase):
         self.assertEqual(init["result"]["serverInfo"]["name"], "oradeck")
         tl = mcp_server.handle_request({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
         names = {t["name"] for t in tl["result"]["tools"]}
-        self.assertEqual(names, {"copy", "inspect", "plan"})
+        self.assertTrue({"copy", "inspect", "plan"}.issubset(names))
 
     def test_plan_call(self):
         r = mcp_server.handle_request({

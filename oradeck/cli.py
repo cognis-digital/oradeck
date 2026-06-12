@@ -77,6 +77,20 @@ def _build_parser() -> argparse.ArgumentParser:
     pr = sub.add_parser("parse", help="Parse a reference into its parts.")
     pr.add_argument("ref")
 
+    vf = sub.add_parser("verify", help="Verify store integrity (blob hashes + reachable blobs).")
+    vf.add_argument("--store", default="oci-store")
+    vf.add_argument("--format", choices=("table", "json"), default="table")
+
+    gc = sub.add_parser("gc", help="Garbage-collect blobs unreachable from the index.")
+    gc.add_argument("--store", default="oci-store")
+    gc.add_argument("--apply", action="store_true",
+                    help="Actually delete orphans (default: dry-run).")
+    gc.add_argument("--format", choices=("table", "json"), default="table")
+
+    rf = sub.add_parser("referrers", help="List stored manifests that reference a subject.")
+    rf.add_argument("subject", help="Subject manifest digest (sha256:...).")
+    rf.add_argument("--store", default="oci-store")
+
     sub.add_parser("mcp", help="Run as an MCP server (stdio JSON-RPC).")
     return p
 
@@ -164,6 +178,56 @@ def _run_parse(a) -> int:
     return 0
 
 
+def _run_verify(a) -> int:
+    from oradeck import verify_store
+    try:
+        res = verify_store(a.store)
+    except (OSError, OradeckError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if a.format == "json":
+        _emit(json.dumps(res, indent=2), None)
+    else:
+        print(f"oradeck verify — {res['store']}")
+        print("=" * 60)
+        print(f"  blobs checked: {res['blobs_checked']}   reachable: {res['reachable']}")
+        for p in res["problems"]:
+            print(f"  ! {p}")
+        print("RESULT: " + ("PASS" if res["ok"] else "FAIL"))
+    return 0 if res["ok"] else 1
+
+
+def _run_gc(a) -> int:
+    from oradeck import gc_store
+    try:
+        res = gc_store(a.store, dry_run=not a.apply)
+    except (OSError, OradeckError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if a.format == "json":
+        _emit(json.dumps(res, indent=2), None)
+    else:
+        mode = "REMOVED" if not res["dry_run"] else "DRY RUN — would remove"
+        print(f"oradeck gc — {mode} {len(res['orphans'])} orphan(s), "
+              f"{_human(res['freed_bytes'])}")
+        for o in res["orphans"]:
+            print(f"  {o[:24]}…")
+    return 0
+
+
+def _run_referrers(a) -> int:
+    from oradeck import list_referrers
+    try:
+        refs = list_referrers(a.store, a.subject)
+    except (OSError, OradeckError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    print(f"oradeck referrers of {a.subject[:24]}… — {len(refs)} found")
+    for r in refs:
+        print(f"  {r['digest'][:24]}…  {r.get('artifactType') or r.get('mediaType')}")
+    return 0
+
+
 def _run_mcp() -> int:
     from oradeck.mcp_server import run_mcp_server
     run_mcp_server()
@@ -183,6 +247,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         return _run_plan(args)
     if args.command == "parse":
         return _run_parse(args)
+    if args.command == "verify":
+        return _run_verify(args)
+    if args.command == "gc":
+        return _run_gc(args)
+    if args.command == "referrers":
+        return _run_referrers(args)
     if args.command == "mcp":
         return _run_mcp()
     parser.print_help(sys.stderr)

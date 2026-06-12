@@ -534,6 +534,137 @@ def inspect_store(store: str) -> Dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
+# Reachability: walk the manifest trees from the index to find live blobs
+# --------------------------------------------------------------------------- #
+
+def _reachable_digests(store: str) -> set:
+    """All blob digests reachable from the store index (manifests + their blobs)."""
+    index = load_store_index(store)
+    reachable: set = set()
+
+    def walk(digest: str) -> None:
+        if digest in reachable:
+            return
+        reachable.add(digest)
+        try:
+            body = read_blob(store, digest)
+        except OradeckError:
+            return
+        try:
+            manifest = json.loads(body.decode())
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return
+        media = manifest.get("mediaType", "")
+        if media in _INDEX_TYPES:
+            for child in _child_manifests(manifest):
+                walk(child)
+        else:
+            for b in _referenced_blobs(manifest):
+                reachable.add(b)
+        # subject (referrers) link
+        subj = manifest.get("subject")
+        if isinstance(subj, dict) and subj.get("digest"):
+            reachable.add(subj["digest"])
+
+    for entry in index.get("manifests", []):
+        if entry.get("digest"):
+            walk(entry["digest"])
+
+    # Also keep referrer manifests (and their blobs) whose `subject` points at
+    # anything already reachable — these are the sigs/SBOMs/attestations copied
+    # alongside the image; they are linked from the image, not from the index.
+    blobs_dir = os.path.join(store, "blobs", "sha256")
+    if os.path.isdir(blobs_dir):
+        changed = True
+        while changed:
+            changed = False
+            for fn in os.listdir(blobs_dir):
+                dig = "sha256:" + fn
+                if dig in reachable:
+                    continue
+                try:
+                    m = json.loads(read_blob(store, dig).decode())
+                except (OradeckError, json.JSONDecodeError, UnicodeDecodeError):
+                    continue
+                subj = m.get("subject")
+                if isinstance(subj, dict) and subj.get("digest") in reachable:
+                    walk(dig)
+                    changed = True
+    return reachable
+
+
+def verify_store(store: str) -> Dict[str, Any]:
+    """Verify store integrity: every blob's content matches its digest, and
+    every digest referenced by an indexed manifest is present.
+    """
+    if not os.path.isdir(store):
+        raise OradeckError(f"store not found: {store}")
+    blobs_dir = os.path.join(store, "blobs", "sha256")
+    problems: List[str] = []
+    checked = 0
+    if os.path.isdir(blobs_dir):
+        for fn in os.listdir(blobs_dir):
+            path = os.path.join(blobs_dir, fn)
+            with open(path, "rb") as fh:
+                actual = hashlib.sha256(fh.read()).hexdigest()
+            checked += 1
+            if actual != fn:
+                problems.append(f"blob content mismatch: {fn[:16]}… (got {actual[:16]}…)")
+    reachable = _reachable_digests(store)
+    for dig in reachable:
+        if not os.path.isfile(_blob_path(store, dig)):
+            problems.append(f"missing referenced blob: {dig}")
+    return {"store": store, "ok": not problems, "blobs_checked": checked,
+            "reachable": len(reachable), "problems": problems}
+
+
+def gc_store(store: str, dry_run: bool = True) -> Dict[str, Any]:
+    """Garbage-collect blobs not reachable from the store index.
+
+    With ``dry_run`` (default) it only reports what would be removed; pass
+    ``dry_run=False`` to actually delete the orphaned blobs.
+    """
+    if not os.path.isdir(store):
+        raise OradeckError(f"store not found: {store}")
+    blobs_dir = os.path.join(store, "blobs", "sha256")
+    reachable = {d.split(":", 1)[1] for d in _reachable_digests(store)
+                 if d.startswith("sha256:")}
+    orphans: List[str] = []
+    freed = 0
+    if os.path.isdir(blobs_dir):
+        for fn in os.listdir(blobs_dir):
+            if fn not in reachable:
+                path = os.path.join(blobs_dir, fn)
+                freed += os.path.getsize(path)
+                orphans.append("sha256:" + fn)
+                if not dry_run:
+                    os.remove(path)
+    return {"store": store, "dry_run": dry_run, "orphans": orphans,
+            "removed": 0 if dry_run else len(orphans),
+            "freed_bytes": freed}
+
+
+def list_referrers(store: str, subject_digest: str) -> List[Dict[str, Any]]:
+    """List manifests in the store whose ``subject`` points at a digest."""
+    blobs_dir = os.path.join(store, "blobs", "sha256")
+    out: List[Dict[str, Any]] = []
+    if not os.path.isdir(blobs_dir):
+        return out
+    for fn in os.listdir(blobs_dir):
+        try:
+            body = read_blob(store, "sha256:" + fn)
+            m = json.loads(body.decode())
+        except (OradeckError, json.JSONDecodeError, UnicodeDecodeError):
+            continue
+        subj = m.get("subject")
+        if isinstance(subj, dict) and subj.get("digest") == subject_digest:
+            out.append({"digest": "sha256:" + fn,
+                        "artifactType": m.get("artifactType"),
+                        "mediaType": m.get("mediaType")})
+    return out
+
+
+# --------------------------------------------------------------------------- #
 # AI hook (opt-in, default OFF) — reused suite pattern
 # --------------------------------------------------------------------------- #
 
