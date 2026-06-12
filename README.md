@@ -1,0 +1,68 @@
+# oradeck
+
+**OCI registry mirror & artifact copy for air-gapped clusters.** Pull container
+images **and their referrers** — signatures, SBOMs, attestations — into a
+portable content-addressable store, carry it across the gap, and push it back
+into a disconnected registry.
+
+Part of the **Cognis Neural Suite**. Pure Python standard library — no Docker
+daemon, no external registry client, no pip dependencies.
+
+---
+
+## Why
+
+Air-gapped and classified environments can't reach Docker Hub or GHCR at deploy
+time. oradeck speaks the **OCI Distribution Spec** directly, so you can mirror
+exactly the artifacts you need — *with their supply-chain metadata intact* —
+onto removable media and seed a private registry on the far side.
+
+## Commands
+
+```bash
+# Copy an image (and its sigs/SBOMs/attestations) into a local OCI store.
+python -m oradeck copy ghcr.io/cognis/app:1.0.0 --store ./oci-store
+
+# List artifacts + blob stats in a store.
+python -m oradeck inspect --store ./oci-store
+
+# Push a stored artifact into a destination registry.
+python -m oradeck push localhost:5000/cognis/app:1.0.0 --store ./oci-store --insecure
+
+# Plan a many-image mirror (source -> destination).
+python -m oradeck plan nginx:1.27 redis:7 --to localhost:5000
+
+# Parse any reference (handles host:port, tags, @sha256 digests).
+python -m oradeck parse ghcr.io/cognis/app:1.0.0
+
+# Try it with zero network using the built-in fixture image.
+python -m oradeck copy x --demo --store /tmp/oci-store
+
+# Run as a local MCP server (stdio JSON-RPC).
+python -m oradeck mcp
+```
+
+## What sets oradeck apart
+
+- **Referrers-aware.** Discovers and copies detached signatures and
+  SBOM/attestation referrers (Referrers API + digest-tag fallback) so your
+  supply-chain evidence crosses the air-gap with the image.
+- **OCI layout store.** Blobs are content-addressed and deduplicated; the store
+  is a standard OCI image layout other tools can read.
+- **Bearer + basic auth** flows handled (Docker-style `WWW-Authenticate`).
+- **MCP-native** (`copy` / `inspect` / `plan`) and an opt-in local-fleet AI hook
+  (default OFF) that suggests a mirror image-set from a plain-English stack.
+- **Pairs with [airlock](https://github.com/cognis-digital/airlock).** oradeck
+  moves the registry artifacts; airlock bundles the whole declarative app.
+
+## Tests
+
+```bash
+python -m pytest -q     # or: python -m unittest discover -s tests
+```
+
+## License
+
+Cognis Open Collaboration License (COCL) 1.0 — see [`LICENSE`](LICENSE).
+© 2026 Cognis Digital LLC. Original Cognis work implementing the open OCI
+Distribution Spec; no third-party code, names, or branding.
