@@ -76,3 +76,32 @@ Distribution Spec; no third-party code, names, or branding.
 
 Part of the **Cognis Neural Suite** — 300+ source-available tools organized across 12 domains under the JTF MERIDIAN command structure. See the [suite on GitHub](https://github.com/cognis-digital) and [jtf-meridian](https://github.com/cognis-digital/jtf-meridian) for how the pieces fit together.
 <!-- cognis:domains:end -->
+
+## Usage — step by step
+
+`oradeck` mirrors OCI images **and their referrers** (signatures, SBOMs, attestations) into a portable store you can carry across an air-gap.
+
+1. **Install** (pure stdlib, Python 3.10+):
+   ```bash
+   pip install "git+https://github.com/cognis-digital/oradeck.git"
+   ```
+2. **Copy an image + referrers** into a local content-addressable store (try `--demo` first for a zero-network fixture):
+   ```bash
+   oradeck copy ghcr.io/cognis/app:1.0.0 --store ./oci-store
+   oradeck copy x --demo --store /tmp/oci-store
+   ```
+3. **Inspect and verify** the store before you move it:
+   ```bash
+   oradeck inspect --store ./oci-store
+   oradeck verify  --store ./oci-store
+   ```
+4. **Push it** into the disconnected destination registry on the far side:
+   ```bash
+   oradeck push localhost:5000/cognis/app:1.0.0 --store ./oci-store --insecure
+   ```
+5. **Automate a bulk mirror** — plan many images (`--format json` for tooling) and garbage-collect orphan blobs:
+   ```bash
+   oradeck plan nginx:1.27 redis:7 --to localhost:5000 --format json
+   oradeck gc --store ./oci-store --apply
+   ```
+   Or run it as a local MCP server (stdio JSON-RPC): `oradeck mcp`.
