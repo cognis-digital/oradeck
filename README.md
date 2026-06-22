@@ -32,6 +32,9 @@ python -m oradeck push localhost:5000/cognis/app:1.0.0 --store ./oci-store --ins
 # Plan a many-image mirror (source -> destination).
 python -m oradeck plan nginx:1.27 redis:7 --to localhost:5000
 
+# Plan from a declarative mirror-set FILE (plain list or JSON) kept in git.
+python -m oradeck plan --from mirror-set.txt --format json
+
 # Parse any reference (handles host:port, tags, @sha256 digests).
 python -m oradeck parse ghcr.io/cognis/app:1.0.0
 
@@ -54,6 +57,46 @@ python -m oradeck mcp
   (default OFF) that suggests a mirror image-set from a plain-English stack.
 - **Pairs with [airlock](https://github.com/cognis-digital/airlock).** oradeck
   moves the registry artifacts; airlock bundles the whole declarative app.
+
+## Mirror-set files (declarative, version-controlled)
+
+`plan --from FILE` reads the exact image set to carry across the gap from a
+**mirror-set file** — the air-gap analogue of a lockfile, kept in git next to
+the app it serves. Two shapes, auto-detected by content:
+
+```text
+# mirror-set.txt — one ref per line; `#` comments and blank lines ignored
+registry: factory-registry.local:5000      # sets the destination
+nginx:1.27-alpine
+ghcr.io/cognis/inference-app:2.3.1
+```
+
+```json
+{ "registry": "registry.internal:5000",
+  "images": ["prom/prometheus:v2.54.1", "grafana/grafana:11.2.0"] }
+```
+
+A `--to` on the command line overrides the in-file `registry`. The same
+`from_file` argument is exposed on the MCP `plan` tool.
+
+## Demos
+
+Runnable, zero-network walkthroughs under [`demos/`](demos/) — each has a
+realistic input file in the tool's real format and a `SCENARIO.md` with the
+exact run command and what to expect:
+
+| Demo | Shows |
+| --- | --- |
+| [01-basic](demos/01-basic) | Mirror the offline fixture image + its SBOM into a store |
+| [02-mirror-set-edge-stack](demos/02-mirror-set-edge-stack) | `plan --from` a plain mirror-set with an in-file `registry:` |
+| [03-mirror-set-json-observability](demos/03-mirror-set-json-observability) | JSON mirror-set + a `--to` CI override |
+| [04-reference-shapes](demos/04-reference-shapes) | `parse` every real reference shape (ports, tags, `@sha256` pins) |
+| [05-inspect-store](demos/05-inspect-store) | Inventory a store before transport |
+| [06-verify-integrity](demos/06-verify-integrity) | Detect transport corruption with `verify` (exit-code gate) |
+| [07-gc-orphans](demos/07-gc-orphans) | Garbage-collect orphan blobs to shrink the media |
+| [08-referrers-supply-chain](demos/08-referrers-supply-chain) | Confirm SBOM/signature referrers crossed the gap |
+| [09-offline-copy-walkthrough](demos/09-offline-copy-walkthrough) | The full copy -> inspect -> verify -> push loop |
+| [10-mcp-agent](demos/10-mcp-agent) | Drive `plan` over the MCP stdio JSON-RPC server |
 
 ## Tests
 
@@ -110,9 +153,10 @@ Part of the **Cognis Neural Suite** — 300+ source-available tools organized ac
    ```bash
    oradeck push localhost:5000/cognis/app:1.0.0 --store ./oci-store --insecure
    ```
-5. **Automate a bulk mirror** — plan many images (`--format json` for tooling) and garbage-collect orphan blobs:
+5. **Automate a bulk mirror** — plan many images (or a version-controlled mirror-set file; `--format json` for tooling) and garbage-collect orphan blobs:
    ```bash
    oradeck plan nginx:1.27 redis:7 --to localhost:5000 --format json
+   oradeck plan --from mirror-set.txt --format json --out plan.json
    oradeck gc --store ./oci-store --apply
    ```
    Or run it as a local MCP server (stdio JSON-RPC): `oradeck mcp`.

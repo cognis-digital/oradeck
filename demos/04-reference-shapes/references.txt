@@ -1,0 +1,20 @@
+# A grab-bag of real OCI reference shapes oradeck must parse correctly.
+# Run each through `oradeck parse` to see registry / repository / tag / digest.
+
+# Bare repo on Docker Hub (implicit registry + implicit :latest)
+nginx
+
+# Hub library image with a tag
+redis:7.4-alpine
+
+# Hub namespaced image
+grafana/grafana:11.2.0
+
+# GHCR with a multi-segment repository path
+ghcr.io/cognis-digital/oradeck:0.1.1
+
+# Registry with an explicit port (the ':' is a port, NOT a tag)
+localhost:5000/cognis/app:1.0.0
+
+# Digest pin (immutable; digest wins over any tag)
+ghcr.io/cognis/inference-app@sha256:1f8b4e2c9a7d6053f4c1b2a39e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a291807

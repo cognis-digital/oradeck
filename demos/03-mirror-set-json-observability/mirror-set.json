@@ -1,0 +1,12 @@
+{
+  "registry": "registry.internal:5000",
+  "description": "Observability + logging stack for an isolated SOC network",
+  "images": [
+    "grafana/grafana:11.2.0",
+    "grafana/loki:3.1.1",
+    "grafana/promtail:3.1.1",
+    "prom/prometheus:v2.54.1",
+    "prom/alertmanager:v0.27.0",
+    "prom/node-exporter:v1.8.2"
+  ]
+}

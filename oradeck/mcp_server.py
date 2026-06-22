@@ -17,6 +17,7 @@ from oradeck.core import (
     copy_to_store,
     gc_store,
     inspect_store,
+    load_mirror_set,
     plan_mirror,
     verify_store,
 )
@@ -52,14 +53,17 @@ _TOOLS = [
     {
         "name": "plan",
         "description": "Plan a many-image mirror: map each source ref to a "
-                       "destination registry reference.",
+                       "destination registry reference. Images can be given "
+                       "inline or loaded from a declarative mirror-set file.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "images": {"type": "array", "items": {"type": "string"}},
                 "dest_registry": {"type": "string"},
+                "from_file": {"type": "string",
+                              "description": "Path to a mirror-set file "
+                                             "(plain list or JSON)."},
             },
-            "required": ["images", "dest_registry"],
             "additionalProperties": False,
         },
     },
@@ -105,11 +109,19 @@ def _call_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
         payload = inspect_store(store)
         is_error = False
     elif name == "plan":
-        images = args.get("images")
+        images = [str(x) for x in (args.get("images") or [])]
         dest = args.get("dest_registry")
-        if not isinstance(images, list) or not isinstance(dest, str):
-            raise ValueError("`images` (array) and `dest_registry` (string) required")
-        payload = {"plan": plan_mirror([str(x) for x in images], dest)}
+        from_file = args.get("from_file")
+        if from_file:
+            file_images, file_dest = load_mirror_set(str(from_file))
+            images = images + file_images
+            dest = dest or file_dest
+        if not images:
+            raise ValueError("`images` (array) or `from_file` required")
+        if not isinstance(dest, str) or not dest:
+            raise ValueError("`dest_registry` or a `registry:` in from_file required")
+        plan = plan_mirror(images, dest)
+        payload = {"destination_registry": dest, "count": len(plan), "plan": plan}
         is_error = False
     elif name == "verify":
         store = args.get("store")

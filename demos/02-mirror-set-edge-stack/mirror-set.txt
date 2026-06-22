@@ -1,0 +1,20 @@
+# mirror-set: edge inference stack for a disconnected factory-floor cluster
+# Pinned image set carried across the air-gap on removable media.
+# One reference per line; `#` comments and blank lines are ignored.
+# The `registry:` directive names the far-side (disconnected) registry.
+
+registry: factory-registry.local:5000
+
+# Ingress + TLS termination
+nginx:1.27-alpine
+
+# Cache / queue
+redis:7.4-alpine
+
+# Model server and the app that drives it
+ghcr.io/cognis/triton-edge:24.08
+ghcr.io/cognis/inference-app:2.3.1
+
+# Observability sidecars
+prom/prometheus:v2.54.1
+grafana/grafana:11.2.0

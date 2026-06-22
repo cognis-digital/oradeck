@@ -510,6 +510,62 @@ def plan_mirror(images: List[str], dest_registry: str) -> List[Dict[str, str]]:
     return plan
 
 
+def load_mirror_set(path: str) -> Tuple[List[str], Optional[str]]:
+    """Load a declarative mirror-set file -> ``(images, dest_registry)``.
+
+    A mirror-set is the air-gap analogue of a lockfile: the exact image set to
+    carry across the gap, kept in version control next to the app it serves.
+    Two on-disk shapes are accepted, auto-detected by content:
+
+    * **Plain list** — one image reference per line. Blank lines and ``#``
+      comments are ignored; an inline ``# ...`` trailing comment is stripped.
+      A ``registry: <host[:port]>`` directive line sets the destination.
+    * **JSON** — ``{"registry": "host:port", "images": ["nginx:1.27", ...]}``.
+      ``destination``/``dest`` are accepted as aliases for ``registry``.
+
+    The returned ``dest_registry`` is the in-file destination if present, else
+    ``None`` (so a CLI ``--to`` can supply or override it). Raises
+    ``OradeckError`` on a missing file or a malformed mirror-set.
+    """
+    if not os.path.isfile(path):
+        raise OradeckError(f"mirror-set file not found: {path}")
+    with open(path, "r", encoding="utf-8") as fh:
+        text = fh.read()
+    stripped = text.lstrip()
+    if stripped.startswith("{"):
+        try:
+            doc = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise OradeckError(f"malformed mirror-set JSON: {exc}") from exc
+        if not isinstance(doc, dict):
+            raise OradeckError("mirror-set JSON must be an object")
+        raw = doc.get("images")
+        if not isinstance(raw, list):
+            raise OradeckError("mirror-set JSON needs an `images` array")
+        images = [str(x).strip() for x in raw if str(x).strip()]
+        dest = doc.get("registry") or doc.get("destination") or doc.get("dest")
+        dest = str(dest).strip() if dest else None
+        if not images:
+            raise OradeckError("mirror-set has no images")
+        return images, (dest or None)
+
+    images = []
+    dest = None
+    for line in text.splitlines():
+        if "#" in line:
+            line = line.split("#", 1)[0]
+        line = line.strip()
+        if not line:
+            continue
+        if line.lower().startswith("registry:"):
+            dest = line.split(":", 1)[1].strip() or None
+            continue
+        images.append(line)
+    if not images:
+        raise OradeckError("mirror-set has no images")
+    return images, dest
+
+
 # --------------------------------------------------------------------------- #
 # inspect store
 # --------------------------------------------------------------------------- #

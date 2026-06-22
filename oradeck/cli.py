@@ -69,10 +69,15 @@ def _build_parser() -> argparse.ArgumentParser:
     ins.add_argument("--out", help="Write report to a file.")
 
     m = sub.add_parser("plan", help="Plan a many-image mirror (source -> dest).")
-    m.add_argument("images", nargs="+", help="Source image references.")
-    m.add_argument("--to", required=True, dest="dest_registry",
-                   help="Destination registry host[:port].")
+    m.add_argument("images", nargs="*", help="Source image references.")
+    m.add_argument("--from", dest="from_file",
+                   help="Read images from a declarative mirror-set file "
+                        "(plain list or JSON; a `registry:` line sets --to).")
+    m.add_argument("--to", dest="dest_registry",
+                   help="Destination registry host[:port] "
+                        "(overrides one set inside a --from file).")
     m.add_argument("--format", choices=("table", "json"), default="table")
+    m.add_argument("--out", help="Write the plan to a file.")
 
     pr = sub.add_parser("parse", help="Parse a reference into its parts.")
     pr.add_argument("ref")
@@ -158,15 +163,37 @@ def _run_inspect(a) -> int:
 
 
 def _run_plan(a) -> int:
-    plan = plan_mirror(a.images, a.dest_registry)
+    from oradeck.core import load_mirror_set
+    images = list(a.images)
+    dest = a.dest_registry
+    if a.from_file:
+        try:
+            file_images, file_dest = load_mirror_set(a.from_file)
+        except (OSError, OradeckError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        images = images + file_images
+        dest = dest or file_dest  # explicit --to wins over the in-file value
+    if not images:
+        print("error: no images — pass refs on the command line or use --from",
+              file=sys.stderr)
+        return 2
+    if not dest:
+        print("error: no destination — pass --to or set `registry:` in --from",
+              file=sys.stderr)
+        return 2
+    plan = plan_mirror(images, dest)
     if a.format == "json":
-        _emit(json.dumps({"plan": plan}, indent=2), None)
+        _emit(json.dumps({"destination_registry": dest, "count": len(plan),
+                          "plan": plan}, indent=2), a.out)
     else:
-        print(f"oradeck mirror plan -> {a.dest_registry}")
-        print("=" * 60)
+        lines = [f"oradeck mirror plan -> {dest}", "=" * 60]
         for step in plan:
-            print(f"  {step['source']}")
-            print(f"    -> {step['destination']}")
+            lines.append(f"  {step['source']}")
+            lines.append(f"    -> {step['destination']}")
+        lines.append("-" * 60)
+        lines.append(f"{len(plan)} image(s)")
+        _emit("\n".join(lines), a.out)
     return 0
 
 

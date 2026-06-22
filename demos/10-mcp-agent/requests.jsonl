@@ -1,0 +1,4 @@
+{"jsonrpc": "2.0", "id": 1, "method": "initialize"}
+{"jsonrpc": "2.0", "id": 2, "method": "tools/list"}
+{"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "plan", "arguments": {"images": ["nginx:1.27-alpine", "redis:7.4", "ghcr.io/cognis/app:1.0.0"], "dest_registry": "localhost:5000"}}}
+{"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "plan", "arguments": {"from_file": "demos/02-mirror-set-edge-stack/mirror-set.txt"}}}
