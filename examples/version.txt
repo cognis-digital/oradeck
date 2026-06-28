@@ -1,0 +1,3 @@
+$ oradeck-emit --version
+
+oradeck 0.1.0

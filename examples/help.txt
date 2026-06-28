@@ -1,0 +1,24 @@
+$ oradeck-emit --help
+
+usage: oradeck [-h] [--version]
+               {copy,push,inspect,plan,parse,verify,gc,referrers,mcp} ...
+
+OCI registry mirror & artifact copy — move images and their
+signatures/SBOMs/attestations across an air-gap.
+
+positional arguments:
+  {copy,push,inspect,plan,parse,verify,gc,referrers,mcp}
+    copy                Copy an image (+referrers) into a local store.
+    push                Push a stored artifact to a destination registry.
+    inspect             List artifacts and blobs in a store.
+    plan                Plan a many-image mirror (source -> dest).
+    parse               Parse a reference into its parts.
+    verify              Verify store integrity (blob hashes + reachable
+                        blobs).
+    gc                  Garbage-collect blobs unreachable from the index.
+    referrers           List stored manifests that reference a subject.
+    mcp                 Run as an MCP server (stdio JSON-RPC).
+
+options:
+  -h, --help            show this help message and exit
+  --version             show program's version number and exit

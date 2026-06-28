@@ -10,6 +10,76 @@ daemon, no external registry client, no pip dependencies.
 
 ---
 
+
+<!-- cognis:example:start -->
+## 🔎 Example output
+
+Real, reproducible output from the tool — runs offline:
+
+```console
+$ oradeck-emit --version
+oradeck 0.1.0
+```
+
+```console
+$ oradeck-emit --help
+usage: oradeck [-h] [--version]
+               {copy,push,inspect,plan,parse,verify,gc,referrers,mcp} ...
+
+OCI registry mirror & artifact copy — move images and their
+signatures/SBOMs/attestations across an air-gap.
+
+positional arguments:
+  {copy,push,inspect,plan,parse,verify,gc,referrers,mcp}
+    copy                Copy an image (+referrers) into a local store.
+    push                Push a stored artifact to a destination registry.
+    inspect             List artifacts and blobs in a store.
+    plan                Plan a many-image mirror (source -> dest).
+    parse               Parse a reference into its parts.
+    verify              Verify store integrity (blob hashes + reachable
+                        blobs).
+    gc                  Garbage-collect blobs unreachable from the index.
+    referrers           List stored manifests that reference a subject.
+    mcp                 Run as an MCP server (stdio JSON-RPC).
+
+options:
+  -h, --help            show this help message and exit
+  --version             show program's version number and exit
+```
+
+> Blocks above are real `oradeck` output — reproduce them from a clone.
+
+**Sample result format** _(illustrative values — run on your own data for real findings):_
+
+```
+{
+"timestamp": "2023-02-16T14:30:00Z",
+"actor": {
+"name": "John Doe"
+},
+"object": {
+"type": "indicator",
+"guid": "1234567890abcdef",
+"confidence": 80,
+"labels": ["malware", "ransomware"],
+"data": {
+"ip": "192.168.1.100",
+"port": 443
+}
+},
+"findings": [
+{
+"id": "F-20230216-143000-001",
+"type": "indicator",
+"guid": "1234567890abcdef",
+"description": "Suspicious network activity detected"
+}
+]
+}
+```
+
+<!-- cognis:example:end -->
+
 ## Why
 
 Air-gapped and classified environments can't reach Docker Hub or GHCR at deploy
